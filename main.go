@@ -1,8 +1,9 @@
 package main
 
-import "mahsa_airline.com/go-auth-backend/migrations"
+import (
+	"mahsa_airline.com/go-auth-backend/api"
+)
 
 func main() {
-
-	migrations.Migrate()
+	api.RunApi()
 }
