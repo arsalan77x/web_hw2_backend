@@ -1,6 +1,8 @@
 package users
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -10,12 +12,10 @@ import (
 )
 
 func generateToken(user *utils.User_account) string {
-
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["user_id"] = user.User_id
-
-	claims["exp"] = time.Now().Add(time.Minute * 48).Unix()
+	claims["exp"] = time.Now().Add(time.Minute * 30).Unix()
 
 	t, err := token.SignedString([]byte("AccessToken"))
 	utils.HandleErr(err)
@@ -99,15 +99,19 @@ func handleSignin(db *gorm.DB, emailOrPhone string, user *utils.User_account, pa
 }
 
 func GetUserInfo(jwt string) map[string]interface{} {
-	isValid := utils.IsTokenValid(jwt)
+	isValid, _ := utils.IsTokenValid(jwt)
 	if isValid != "" {
 		id := isValid
 		db := utils.ConnectDB()
 		user := &utils.User_account{}
+
+		// can it happen?!
 		if db.Where("user_id = ? ", id).First(&user).RecordNotFound() {
 			return map[string]interface{}{"message": "User not found"}
 		}
 		defer db.Close()
+
+		//TODO check cache
 
 		responseUser := &utils.User_info{
 			User_id:      user.User_id,
@@ -123,4 +127,25 @@ func GetUserInfo(jwt string) map[string]interface{} {
 	} else {
 		return map[string]interface{}{"message": "Not valid token"}
 	}
+}
+
+func Signout(jwt string) map[string]interface{} {
+	isValid, exp_time := utils.IsTokenValid(jwt)
+	if isValid != "" {
+		splitToken := strings.Split(jwt, "Bearer ")
+		jwtToken := splitToken[1]
+		id := isValid
+		db := utils.ConnectDB()
+		u_token := &utils.Unauthorized_token{}
+		// TODO check from cache
+		uid, err := strconv.ParseUint(id, 10, 64)
+		utils.HandleErr(err)
+		u_token = &utils.Unauthorized_token{User_id: uint(uid), Token: jwtToken, Expiration: exp_time}
+		db.Create(&u_token)
+		defer db.Close()
+		return map[string]interface{}{"message": "signed out successfully."}
+	} else {
+		return map[string]interface{}{"message": "Not valid token"}
+	}
+
 }

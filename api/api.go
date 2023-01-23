@@ -65,12 +65,21 @@ func getUserInfo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+func signout(write http.ResponseWriter, read *http.Request) {
+	auth := read.Header.Get("Authorization")
+	signout := users.Signout(auth)
+	resp := signout
+	json.NewEncoder(write).Encode(resp)
+	write.WriteHeader(http.StatusCreated)
+}
+
 func RunApi() {
 	httpReq := mux.NewRouter()
 	httpReq.Use(utils.PanicHandler)
 	httpReq.HandleFunc("/signin", signin).Methods("POST")
 	httpReq.HandleFunc("/signup", signup).Methods("POST")
 	httpReq.HandleFunc("/user", getUserInfo).Methods("GET")
+	httpReq.HandleFunc("/signout", signout).Methods("POST")
 	print("App is working on port :8888\n")
 	log.Fatal(http.ListenAndServe(":8888", httpReq))
 }

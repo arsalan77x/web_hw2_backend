@@ -132,10 +132,10 @@ type MyCustomClaims struct {
 	jwt.StandardClaims
 }
 
-func IsTokenValid(jwtToken string) string {
+func IsTokenValid(jwtToken string) (string, time.Time) {
 
 	if jwtToken == "" {
-		return ""
+		return "", time.Now()
 	}
 	splitToken := strings.Split(jwtToken, "Bearer ")
 	jwtToken = splitToken[1]
@@ -146,16 +146,15 @@ func IsTokenValid(jwtToken string) string {
 
 	if err != nil {
 		HandleErr(err)
-		return ""
+		return "", time.Now()
 	}
-
 	if claims, ok := token.Claims.(*MyCustomClaims); ok && token.Valid {
 		var tm = time.Unix(int64(claims.Expiration), 0)
 		if tm.Before(time.Now()) {
 			log.Fatalf("token expired")
-			return ""
+			return "", time.Now()
 		}
-		return strconv.Itoa(claims.User_id)
+		return strconv.Itoa(claims.User_id), tm
 	}
-	return ""
+	return "", time.Now()
 }
