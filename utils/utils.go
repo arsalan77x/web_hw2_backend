@@ -5,8 +5,11 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/jinzhu/gorm"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
@@ -30,6 +33,15 @@ type Unauthorized_token struct {
 
 type ErrResponse struct {
 	Message string
+}
+
+type User_info struct {
+	User_id      uint
+	Email        string
+	Phone_number string
+	Gender       string
+	First_name   string
+	Last_name    string
 }
 
 func HandleErr(err error) {
@@ -112,4 +124,38 @@ func IsEmail(emailOrPhone string) bool {
 	} else {
 		return false
 	}
+}
+
+type MyCustomClaims struct {
+	User_id    int     `json:"user_id"`
+	Expiration float64 `json:"exp"`
+	jwt.StandardClaims
+}
+
+func IsTokenValid(jwtToken string) string {
+
+	if jwtToken == "" {
+		return ""
+	}
+	splitToken := strings.Split(jwtToken, "Bearer ")
+	jwtToken = splitToken[1]
+
+	token, err := jwt.ParseWithClaims(jwtToken, &MyCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte("AccessToken"), nil
+	})
+
+	if err != nil {
+		HandleErr(err)
+		return ""
+	}
+
+	if claims, ok := token.Claims.(*MyCustomClaims); ok && token.Valid {
+		var tm = time.Unix(int64(claims.Expiration), 0)
+		if tm.Before(time.Now()) {
+			log.Fatalf("token expired")
+			return ""
+		}
+		return strconv.Itoa(claims.User_id)
+	}
+	return ""
 }

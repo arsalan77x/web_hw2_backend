@@ -10,15 +10,16 @@ import (
 )
 
 func generateToken(user *utils.User_account) string {
-	tokenContent := jwt.MapClaims{
-		"user_email": user.Email,
-		"expiry":     time.Now().Add(time.Minute * 30).Unix(),
-	}
-	jwtToken := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), tokenContent)
-	token, err := jwtToken.SignedString([]byte("TokenPassword"))
-	utils.HandleErr(err)
 
-	return token
+	token := jwt.New(jwt.SigningMethodHS256)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["user_id"] = user.User_id
+
+	claims["exp"] = time.Now().Add(time.Minute * 48).Unix()
+
+	t, err := token.SignedString([]byte("AccessToken"))
+	utils.HandleErr(err)
+	return t
 }
 
 func Signup(email string, phone_number string, gender string,
@@ -95,4 +96,31 @@ func handleSignin(db *gorm.DB, emailOrPhone string, user *utils.User_account, pa
 	response["jwt"] = token
 	response["email"] = user.Email
 	return response
+}
+
+func GetUserInfo(jwt string) map[string]interface{} {
+	isValid := utils.IsTokenValid(jwt)
+	if isValid != "" {
+		id := isValid
+		db := utils.ConnectDB()
+		user := &utils.User_account{}
+		if db.Where("user_id = ? ", id).First(&user).RecordNotFound() {
+			return map[string]interface{}{"message": "User not found"}
+		}
+		defer db.Close()
+
+		responseUser := &utils.User_info{
+			User_id:      user.User_id,
+			Email:        user.Email,
+			Phone_number: user.Phone_number,
+			Gender:       user.Gender,
+			First_name:   user.First_name,
+			Last_name:    user.Last_name,
+		}
+		var response = map[string]interface{}{"message": "all user data retrieved successfully."}
+		response["data"] = responseUser
+		return response
+	} else {
+		return map[string]interface{}{"message": "Not valid token"}
+	}
 }
