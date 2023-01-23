@@ -38,6 +38,7 @@ func signin(write http.ResponseWriter, read *http.Request) {
 
 	resp := login
 	json.NewEncoder(write).Encode(resp)
+	write.WriteHeader(http.StatusCreated)
 }
 
 func signup(write http.ResponseWriter, read *http.Request) {
@@ -53,7 +54,7 @@ func signup(write http.ResponseWriter, read *http.Request) {
 
 	resp := register
 	json.NewEncoder(write).Encode(resp)
-
+	write.WriteHeader(http.StatusCreated)
 }
 
 func RunApi() {
