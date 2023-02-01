@@ -6,16 +6,24 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/go-redis/redis"
 	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
 	"mahsa_airline.com/go-auth-backend/utils"
 )
 
+var exptime = 120
+var client *redis.Client = redis.NewClient(&redis.Options{
+	Addr:     "localhost:6379",
+	Password: "",
+	DB:       0,
+})
+
 func generateToken(user *utils.User_account) string {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 	claims["user_id"] = user.User_id
-	claims["exp"] = time.Now().Add(time.Minute * 30).Unix()
+	claims["exp"] = time.Now().Add(time.Second * time.Duration(exptime)).Unix()
 
 	t, err := token.SignedString([]byte("AccessToken"))
 	utils.HandleErr(err)
@@ -99,6 +107,7 @@ func handleSignin(db *gorm.DB, emailOrPhone string, user *utils.User_account, pa
 }
 
 func GetUserInfo(jwt string) map[string]interface{} {
+
 	isValid, _ := utils.IsTokenValid(jwt)
 	if isValid != "" {
 		id := isValid
@@ -112,6 +121,10 @@ func GetUserInfo(jwt string) map[string]interface{} {
 		defer db.Close()
 
 		//TODO check cache
+		_, isExpired := checkCache(id, jwt)
+		if isExpired {
+			return map[string]interface{}{"message": "token is expired."}
+		}
 
 		responseUser := &utils.User_info{
 			User_id:      user.User_id,
@@ -137,15 +150,45 @@ func Signout(jwt string) map[string]interface{} {
 		id := isValid
 		db := utils.ConnectDB()
 		u_token := &utils.Unauthorized_token{}
-		// TODO check from cache
+
 		uid, err := strconv.ParseUint(id, 10, 64)
 		utils.HandleErr(err)
 		u_token = &utils.Unauthorized_token{User_id: uint(uid), Token: jwtToken, Expiration: exp_time}
 		db.Create(&u_token)
 		defer db.Close()
+
+		c, isExpired := checkCache(id, jwtToken)
+		if isExpired {
+			return map[string]interface{}{"message": "token is expired."}
+		} else {
+			client.Set(c+"-"+id, jwtToken, time.Second*time.Duration(exptime)).Err()
+			if err != nil {
+				utils.HandleErr(err)
+			}
+		}
+
 		return map[string]interface{}{"message": "signed out successfully."}
 	} else {
 		return map[string]interface{}{"message": "Not valid token"}
 	}
 
+}
+
+func checkCache(id string, jwtToken string) (string, bool) {
+	var count int = 0
+	var c string
+	var isExpired bool = false
+	for true {
+		count += 1
+		c = strconv.FormatInt(int64(count), 10)
+		r, _ := client.Get(c + "-" + id).Result()
+		if r == jwtToken {
+			isExpired = true
+			break
+		}
+		if r == "" {
+			break
+		}
+	}
+	return c, isExpired
 }

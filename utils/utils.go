@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -151,7 +152,7 @@ func IsTokenValid(jwtToken string) (string, time.Time) {
 	if claims, ok := token.Claims.(*MyCustomClaims); ok && token.Valid {
 		var tm = time.Unix(int64(claims.Expiration), 0)
 		if tm.Before(time.Now()) {
-			log.Fatalf("token expired")
+			fmt.Println("expired token")
 			return "", time.Now()
 		}
 		return strconv.Itoa(claims.User_id), tm
