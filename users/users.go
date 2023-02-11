@@ -12,7 +12,7 @@ import (
 	"mahsa_airline.com/go-auth-backend/utils"
 )
 
-var exptime = 120
+var exptime = 300
 var client *redis.Client = redis.NewClient(&redis.Options{
 	Addr:     "localhost:6379",
 	Password: "",
@@ -110,20 +110,27 @@ func GetUserInfo(jwt string) map[string]interface{} {
 
 	isValid, _ := utils.IsTokenValid(jwt)
 	if isValid != "" {
+		splitToken := strings.Split(jwt, "Bearer ")
+		jwtToken := splitToken[1]
 		id := isValid
 		db := utils.ConnectDB()
 		user := &utils.User_account{}
+		u_token := &utils.Unauthorized_token{}
 
 		// can it happen?!
 		if db.Where("user_id = ? ", id).First(&user).RecordNotFound() {
+			defer db.Close()
 			return map[string]interface{}{"message": "User not found"}
 		}
-		defer db.Close()
 
-		//TODO check cache
-		_, isExpired := checkCache(id, jwt)
+		_, isExpired := checkCache(id, jwtToken)
 		if isExpired {
+			defer db.Close()
 			return map[string]interface{}{"message": "token is expired."}
+		}
+
+		if !db.Where("token = ? ", jwtToken).First(&u_token).RecordNotFound() {
+			return map[string]interface{}{"message": "token is expired!"}
 		}
 
 		responseUser := &utils.User_info{
@@ -136,6 +143,7 @@ func GetUserInfo(jwt string) map[string]interface{} {
 		}
 		var response = map[string]interface{}{"message": "all user data retrieved successfully."}
 		response["data"] = responseUser
+		defer db.Close()
 		return response
 	} else {
 		return map[string]interface{}{"message": "Not valid token"}
@@ -143,6 +151,7 @@ func GetUserInfo(jwt string) map[string]interface{} {
 }
 
 func Signout(jwt string) map[string]interface{} {
+
 	isValid, exp_time := utils.IsTokenValid(jwt)
 	if isValid != "" {
 		splitToken := strings.Split(jwt, "Bearer ")
@@ -153,9 +162,6 @@ func Signout(jwt string) map[string]interface{} {
 
 		uid, err := strconv.ParseUint(id, 10, 64)
 		utils.HandleErr(err)
-		u_token = &utils.Unauthorized_token{User_id: uint(uid), Token: jwtToken, Expiration: exp_time}
-		db.Create(&u_token)
-		defer db.Close()
 
 		c, isExpired := checkCache(id, jwtToken)
 		if isExpired {
@@ -166,6 +172,14 @@ func Signout(jwt string) map[string]interface{} {
 				utils.HandleErr(err)
 			}
 		}
+
+		if !db.Where("token = ? ", jwtToken).First(&u_token).RecordNotFound() {
+			return map[string]interface{}{"message": "token is expired!"}
+		}
+
+		u_token = &utils.Unauthorized_token{User_id: uint(uid), Token: jwtToken, Expiration: exp_time}
+		db.Create(&u_token)
+		defer db.Close()
 
 		return map[string]interface{}{"message": "signed out successfully."}
 	} else {
