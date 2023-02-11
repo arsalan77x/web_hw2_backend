@@ -1,6 +1,7 @@
 package users
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +15,7 @@ import (
 
 var exptime = 300
 var client *redis.Client = redis.NewClient(&redis.Options{
-	Addr:     "localhost:6379",
+	Addr:     os.Getenv("REDIS_HOST"),
 	Password: "",
 	DB:       0,
 })

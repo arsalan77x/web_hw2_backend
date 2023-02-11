@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -59,7 +60,14 @@ func PassMap(pass []byte) string {
 }
 
 func ConnectDB() *gorm.DB {
-	db, err := gorm.Open("postgres", "host=127.0.0.1 port=5432 user=postgres dbname=postgres password=postgres sslmode=disable")
+	db, err := gorm.Open("postgres",
+		fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
+			os.Getenv("DB_HOST"),
+			os.Getenv("DB_PORT"),
+			os.Getenv("DB_USER"),
+			os.Getenv("DB_DATABASE"),
+			os.Getenv("DB_PASSWORD"),
+		))
 	HandleErr(err)
 	return db
 }
